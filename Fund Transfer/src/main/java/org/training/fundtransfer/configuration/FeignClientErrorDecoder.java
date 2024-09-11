@@ -6,8 +6,12 @@ import feign.Response;
 import feign.codec.ErrorDecoder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+import org.training.fundtransfer.exception.ConflictException;
+import org.training.fundtransfer.exception.ForbiddenAccessException;
 import org.training.fundtransfer.exception.GlobalException;
+import org.training.fundtransfer.exception.UnauthorizedAccessException;
 
+import javax.naming.ServiceUnavailableException;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -19,8 +23,8 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
     /**
      * Decodes the HTTP response and returns an exception if necessary.
      *
-     * @param s        The string representation of the response body.
-     * @param response The HTTP response object.
+     * @param "s"        The string representation of the response body.
+     * @param "response" The HTTP response object.
      * @return An exception object if necessary, or null if no exception is thrown.
      */
     @Override
@@ -30,15 +34,36 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
 
         switch (response.status()) {
             case 400 -> {
-                log.error(globalException.getErrorCode() + " - " + globalException.getMessage());
+                log.error("400 Bad Request: " + globalException.getErrorCode() + " - " + globalException.getMessage());
                 return globalException;
             }
+            case 401 -> {
+                log.error("401 Unauthorized: " + globalException.getErrorCode() + " - " + globalException.getMessage());
+                return new UnauthorizedAccessException(globalException.getMessage());
+            }
+            case 403 -> {
+                log.error("403 Forbidden: " + globalException.getErrorCode() + " - " + globalException.getMessage());
+                return new ForbiddenAccessException(globalException.getMessage());
+            }
+
+            case 409 -> {
+                log.error("409 Conflict: " + globalException.getErrorCode() + " - " + globalException.getMessage());
+                return new ConflictException(globalException.getMessage());
+            }
+
+
+            case 503 -> {
+                log.error("503 Service Unavailable: " + globalException.getErrorCode() + " - " + globalException.getMessage());
+                return new ServiceUnavailableException("Service unavailable: " + globalException.getMessage());
+            }
+
             default -> {
-                log.error("general exception occurred");
-                return new Exception("general exception occurred");
+                log.error("General exception occurred: " + globalException.getErrorCode() + " - " + globalException.getMessage());
+                return new Exception("General exception occurred: " + globalException.getMessage());
             }
         }
     }
+
 
     /**
      * Extracts a GlobalException object from a Response object
